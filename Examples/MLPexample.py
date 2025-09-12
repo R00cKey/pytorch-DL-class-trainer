@@ -1,18 +1,20 @@
 import argparse
 import ast
+import sys
+import os
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from BaseDLFramework import BaseDLFramework
 from sklearn.metrics import confusion_matrix
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import os
 
 class MLP(nn.Module):
     def __init__(self, input_dim : int , hidden_dims: list, output_dim: int):
@@ -223,7 +225,7 @@ def main(hidden_dims, lr, epoch_max):
     print(f"Hidden dims: {hidden_dims}, LR: {lr}, Training Epochs: {epoch_max}, Test Accuracy: {trainer.eval_accuracy(test_loader):.2%}")
     trainer.plot_confusion_matrix(test_loader, class_names=iris.target_names, filename=f"Confusion_matrix_{hidden_dims}_{lr}_{epoch_max}.png")
 
-if __name__ == "__main__"    
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--hidden_dims", type=str, default="16")
     parser.add_argument("--lr", type=float, default=0.001)
@@ -232,3 +234,5 @@ if __name__ == "__main__"
 
     # Convert string to list if needed
     hidden_dims = ast.literal_eval(args.hidden_dims)
+    print(hidden_dims)
+    main(hidden_dims, args.lr, args.epoch_max)
