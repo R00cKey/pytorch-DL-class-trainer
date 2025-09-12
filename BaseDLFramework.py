@@ -82,7 +82,11 @@ class BaseDLFramework:
 	def run_epoch(self, max_epochs: int): #max_epochs is the total number of epochs to be run
 		for epoch in range(self._epochs_run, max_epochs):
 			self._model.train()
-			self._train()
+			train_loss=self._train()
+			if train_loss < self._best_train_loss and self._epochs_run+1 >5:
+				self._best_train_loss=train_loss
+				print(f"Saving best model at Epoch {self._epochs_run+1}")
+				self._save_best_model()
 			self._epochs_run+=1
 			if epoch % 5 ==0: self._save_snapshot(epoch) ##Backup of training, in case something interrupts the program. Best to run after validation, if present
 			
@@ -103,10 +107,9 @@ class BaseDLFramework:
 
 		train_loss = train_loss / len(self.train_data.dataset)
 		self._train_loss_by_epochs.append(train_loss)
-		if train_loss < self._best_train_loss and self._epochs_run+1 >5:
-			self._best_train_loss=train_loss
-			print(f"Saving best model at Epoch {self._epochs_run+1}")
-			self._save_best_model()
+
+		return train_loss
+		
 
 	#Methods to plot data
 	def plot_train_loss_by_epochs(self, title=None, xlabel=None, ylabel=None, label=None, color=None):
