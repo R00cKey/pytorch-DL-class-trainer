@@ -79,7 +79,7 @@ class BaseDLFramework:
 		return self._model #Can be used inside print()
 
 	#Methods for training
-	def run_epoch(self, max_epochs: int): #max_epochs is the total number of epochs to be run
+	def run_epochs(self, max_epochs: int): #max_epochs is the total number of epochs to be run
 		for epoch in range(self._epochs_run, max_epochs):
 			self._model.train()
 			train_loss=self._train()
@@ -112,7 +112,7 @@ class BaseDLFramework:
 		
 
 	#Methods to plot data
-	def plot_train_loss_by_epochs(self, title=None, xlabel=None, ylabel=None, label=None, color=None):
+	def plot_train_loss_by_epochs(self, title=None, xlabel=None, ylabel=None, label=None, color=None, filename='test_loss.png'):
 		fig, ax = plt.subplots()
 		ax.plot(np.arange(1, len(self._train_loss_by_epochs)+1), self._train_loss_by_epochs, label=label, color=color)
 		if title:
@@ -123,3 +123,5 @@ class BaseDLFramework:
 			ax.set_ylabel(ylabel)
 		if label:
 			ax.legend()
+		print(f"Saving Train Loss Plot at {os.path.abspath(filename)}")
+		fig.savefig(filename)
