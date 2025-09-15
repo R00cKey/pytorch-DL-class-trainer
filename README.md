@@ -1,8 +1,14 @@
 # pytorch-DL-class-trainer
 
-This repository contains the parent class defining utilities for a Deep Learning model training. An example containing an example of inheritance and main is also provided. these are the variables and methods defined inside the mother class:
+This repository contains the parent class defining utilities for a Deep Learning model training. An example containing an example of inheritance and main is also provided. These are the variables and methods defined inside the base classes:
 
-BaseDLFramework(model, train_dataloader, optimizer, criterion, snapshot_path, model_init_path, best_model_save_path)
+
+This class is made to run on single GPUs
+BaseDLFramework(model, train_dataloader, optimizer, criterion, snapshot_path, model_init_path, best_model_save_path, save_every_epoch)
+
+
+This class is made to run on multiple GPUs and Nodes via torchrun.
+BaseDLFrameworkDDP(model, optimizer, criterion,snapshot_path, model_init_path, save_every_epoch)
 
 ## Variables
 
@@ -26,6 +32,9 @@ The path containing the initialization weights of the model, if present. The def
 
 ### best_model_save_path (str)
 The file path where the best model's weights, architecture, best loss achieved and optimizer hyperparameters are stores. The default argument is "best_model.pt"
+
+### save_every_epoch (int)
+Parameter to indicate how many epochs must pass between snapshot saves.
 
 ## Internal Methods
 

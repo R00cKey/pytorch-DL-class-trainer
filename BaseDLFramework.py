@@ -14,8 +14,8 @@ class BaseDLFramework:
 		criterion: torch.nn.modules.loss._Loss,
 		snapshot_path: str = "snapshot/snapshot.pt", #Path and filename
 		model_init_path: str = 'None',
-		best_model_save_path: str='best_model.pt'
-		) -> None:
+		best_model_save_path: str='best_model.pt',
+		save_every_epoch: int = 5) -> None:
 
 			self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 			self._model = model.to(self._device)
@@ -26,6 +26,7 @@ class BaseDLFramework:
 			self._snapshot_path = snapshot_path
 			self._model_init_path = model_init_path
 			self._best_model_save_path = best_model_save_path
+			self._n_save=save_every_epoch
 			self._best_train_loss = np.inf
 			self._train_loss_by_epochs = [] #Save training loss in each epoch in order to plot train loss vs epochs
 
@@ -88,7 +89,7 @@ class BaseDLFramework:
 				print(f"Saving best model at Epoch {self._epochs_run+1}")
 				self._save_best_model()
 			self._epochs_run+=1
-			if epoch % 5 ==0: self._save_snapshot(epoch) ##Backup of training, in case something interrupts the program. Best to run after validation, if present
+			if epoch % self._n_save ==0: self._save_snapshot(epoch) ##Backup of training, in case something interrupts the program. Best to run after validation, if present
 			
 
 	def _train(self):

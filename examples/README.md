@@ -21,3 +21,18 @@ The batch script **trainer_batch.sh** is an example on how multiple programs wit
 
 <pre>chmod +x trainer_batch.sh
 ./trainer_batch.sh </pre>
+
+# MLPexampleDDP.py and DDP_batch.sh
+**MLPexample.py** follows the same algorithm as the **InheritanceExample.py**. However, it is now initialized via argparse, in order to be directly run by bash.
+Here's an example of a bash code, for running on a single node:
+
+<pre># After sourcing the Python environment
+torchrun --standalone --nproc_per_node=gpu MLPexampleDDP.py --hidden_dims "$hidden_dims" --lr $lr --epoch_max $epoch_max > "$logfile" 2>&1
+
+Notice that the --hidden_dims argument is a python list written as a string.
+
+The batch script **trainer_batch.sh** is an example on how multiple programs with different arguments can be run. To run the script:
+
+
+<pre>chmod +x DDP_batch.sh
+./DDP_batch.sh </pre>

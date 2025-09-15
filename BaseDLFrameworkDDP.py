@@ -14,16 +14,15 @@ class BaseDLFrameworkDDP:
 			    train_data: DataLoader,
 			    optimizer: torch.optim.Optimizer,
 			    criterion: torch.nn.modules.loss._Loss,
-			    scheduler: torch.optim.lr_scheduler,
 			    snapshot_path: str,
 			    model_init_path: str,
 			    save_every_epoch: int = 5) -> None:
 		self._gpu_id = int(os.environ["LOCAL_RANK"])
+		self._global_rank = int(os.environ["RANK"])
 		self._model = model.to(self._gpu_id)
 		self.train_data = train_data
 		self._optimizer = optimizer
 		self._criterion = criterion
-		self._scheduler=scheduler
 		self.epochs_run = 0
 		self.snapshot_path = snapshot_path
 		self._n_save=save_every_epoch #Save snapshot every n_save epochs
@@ -35,8 +34,6 @@ class BaseDLFrameworkDDP:
 			self._load_init_model(model_init_path)
 		self._model = DDP(self._model, device_ids=[self._gpu_id])
 		self._train_loss_by_epochs = []
-		self._val_loss_by_epochs = []
-		self.best_valid_loss=float('inf')
 
 	#Training load and save methods
 	def _save_snapshot(self, epoch): ##Backup the training in case of DDP errors, so training can be resumed instead of a reset
@@ -87,7 +84,7 @@ class BaseDLFrameworkDDP:
 		for epoch in range(self._epochs_run, max_epochs):
 			self._model.train()
 			b_sz = len(next(iter(self.train_data)))
-			print(f"[GPU{self._gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(self.train_data)}")
+			print(f"[GPU{self._global_rank}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(self.train_data)}")
 			train_loss=self._train()
 			dist.barrier() #Synchronize all ranks before saving
 			if self._gpu_id == 0:
@@ -116,7 +113,6 @@ class BaseDLFrameworkDDP:
 		train_loss = train_loss / len(self.train_data.dataset)
 		if self._gpu_id==0:
 			self._train_loss_by_epochs.append(train_loss)
-		self._scheduler.step()
 		return train_loss
 		
 

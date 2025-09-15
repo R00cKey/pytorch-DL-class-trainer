@@ -64,6 +64,7 @@ class MLPTrainerDDP(BaseDLFrameworkDDP):
                          snapshot_path, model_init_path, best_model_save_path, save_every_epoch)
 
         #Adding the new variables
+        self._scheduler=scheduler
         self.val_data=val_dataloader
         self._best_val_acc=0
         self._val_acc_by_epochs=[]
@@ -104,7 +105,7 @@ class MLPTrainerDDP(BaseDLFrameworkDDP):
             b_sz = len(next(iter(self.train_data)))
             print(f"[GPU{self._gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(self.train_data)}")
             train_loss=self._train()
-
+            self._scheduler.step()
             dist.barrier() # Synchronize all ranks before updating variables, running validation on rank 0 and saving
 
             if self._gpu_id==0:
