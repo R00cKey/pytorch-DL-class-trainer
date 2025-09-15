@@ -58,17 +58,6 @@ class MLPTrainer(BaseDLFramework):
         self._best_val_acc=0
         self._val_acc_by_epochs=[]
 
-        
-    def _save_snapshot(self, epoch): ##Backup the training in case of DDP errors, so training can be resumed instead of a reset
-        snapshot = {
-          "MODEL_STATE": self._model.state_dict(),
-          "EPOCHS_RUN": epoch,
-          "TRAIN_LOSS_EPOCHS": self._train_loss_by_epochs
-        }
-        if not os.path.exists(os.path.abspath(os.path.dirname(self._snapshot_path))):
-            os.mkdir(os.path.abspath(os.path.dirname(self._snapshot_path)))
-        torch.save(snapshot, self._snapshot_path)
-        print(f"Epoch {epoch+1} | Training snapshot saved at {self._snapshot_path}")
 
     #Modify best model dictionary to store best validation set loss
     def _save_best_model(self): #Save the model which performed the best
