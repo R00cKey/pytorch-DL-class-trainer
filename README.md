@@ -4,11 +4,11 @@ This repository contains the parent class defining utilities for a Deep Learning
 
 
 This class is made to run on single GPUs
-BaseDLFramework(model, train_dataloader, optimizer, criterion, snapshot_path, model_init_path, best_model_save_path, save_every_epoch)
+`BaseDLFramework(model, train_dataloader, optimizer, criterion, snapshot_path, model_init_path, best_model_save_path, save_every_epoch, patience, verbosity)`
 
 
 This class is made to run on multiple GPUs and Nodes via torchrun.
-BaseDLFrameworkDDP(model, optimizer, criterion,snapshot_path, model_init_path, save_every_epoch)
+`BaseDLFrameworkDDP(model, optimizer, criterion,snapshot_path, model_init_path, save_every_epoch)`
 
 ## Variables
 
@@ -35,6 +35,14 @@ The file path where the best model's weights, architecture, best loss achieved a
 
 ### save_every_epoch (int)
 Parameter to indicate how many epochs must pass between snapshot saves.
+
+### patience (int)
+How many epochs where |best_train_loss-train_loss|<10^-4 befor Early Stopping is triggered. The threshold is hard-coded as _delta_patience
+
+### verbosity (int)
+0: Only Early Stopping is printed
+1: When snapshot or best model is saved
+2: Model's loading
 
 ## Internal Methods
 

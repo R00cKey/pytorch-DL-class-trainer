@@ -1,8 +1,9 @@
-import time
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import os
+import logging
+from tqdm import tqdm
 
 
 class BaseDLFramework:
@@ -12,10 +13,12 @@ class BaseDLFramework:
 		train_dataloader: torch.utils.data.DataLoader,
 		optimizer: torch.optim.Optimizer,
 		criterion: torch.nn.modules.loss._Loss,
-		snapshot_path: str = "snapshot/snapshot.pt", #Path and filename
+		snapshot_path: str = 'None', #Path and filename
 		model_init_path: str = 'None',
-		best_model_save_path: str='best_model.pt',
-		save_every_epoch: int = 5) -> None:
+		best_model_save_path: str='None',
+		save_every_epoch: int = 5,
+		patience: int = 10**9,
+		verbosity: int = 0) -> None:
 
 			self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 			self._model = model.to(self._device)
@@ -27,15 +30,29 @@ class BaseDLFramework:
 			self._model_init_path = model_init_path
 			self._best_model_save_path = best_model_save_path
 			self._n_save=save_every_epoch
+			self._max_patience=patience
+			self._patience=0
+			self._delta_patience=1.e-4
 			self._best_train_loss = np.inf
 			self._train_loss_by_epochs = [] #Save training loss in each epoch in order to plot train loss vs epochs
+			self._verbosity=verbosity
 
-			if os.path.exists(self._snapshot_path):
-				print("Loading snapshot")
-				self._load_snapshot()
+			self.verbosity_logger = logging.getLogger(__name__)
+
+			if self._verbosity == 0:
+				self.verbosity_logger.setLevel(logging.ERROR)
+			elif self._verbosity == 1:
+				self.verbosity_logger.setLevel(logging.WARNING)
+			elif self._verbosity >= 2:
+				self.verbosity_logger.setLevel(logging.INFO)
+
+			if self._snapshot_path != 'None':
+				if os.path.exists(self._snapshot_path):
+					self.verbosity_logger.info("Loading snapshot")
+					self._load_snapshot()
 
 			elif os.path.exists(self._model_init_path):
-				print("Loading Initialized model")
+				self.verbosity_logger.info("Loading Initialized model")
 				self._load_init_model()
 
 	#Training load and save methods
@@ -48,20 +65,20 @@ class BaseDLFramework:
 		if not os.path.exists(os.path.abspath(os.path.dirname(self._snapshot_path))):
 			os.mkdir(os.path.abspath(os.path.dirname(self._snapshot_path)))
 		torch.save(snapshot, self._snapshot_path)
-		print(f"Epoch {epoch+1} | Training snapshot saved at {self._snapshot_path}")
+		self.verbosity_logger.warning(f"Epoch {epoch+1} | Training snapshot saved at {self._snapshot_path}")
 
 	def _load_snapshot(self): ##Load the backup at declaration of Trainer class in main()
 		snapshot = torch.load(self._snapshot_path, map_location=self._device)
 		self._model.load_state_dict(snapshot["MODEL_STATE"])
 		self._epochs_run = snapshot["EPOCHS_RUN"]
 		self._train_loss_by_epochs = snapshot["TRAIN_LOSS_EPOCHS"]
-		print(f"Resuming training from snapshot saved at Epoch {self._epochs_run}")
+		self.verbosity_logger.info(f"Resuming training from snapshot saved at Epoch {self._epochs_run}")
 
 	#Methods to get and load information on the class
 	def _load_init_model(self): ##Initialize the model defined in the class
 		init_weights = torch.load(self._model_init_path, map_location=self._device)
 		self._model.load_state_dict(init_weights["MODEL_STATE"])
-		print(f"Initialized the weights of the model")
+		self.verbosity_logger.info(f"Initialized the weights of the model")
 
 	def _save_best_model(self): #Save the model which performed the best
 		best_model={
@@ -71,6 +88,7 @@ class BaseDLFramework:
 		    "OPTIM_HYPERPARM": self._get_optim_hp()
 		  }
 		torch.save(best_model, self._best_model_save_path)
+		self.verbosity_logger.warning(f"Saving best model at Epoch {self._epochs_run+1}")
 
 	def _get_optim_hp(self):
 		for param_group in self._optimizer.param_groups:
@@ -81,15 +99,29 @@ class BaseDLFramework:
 
 	#Methods for training
 	def run_epochs(self, max_epochs: int): #max_epochs is the total number of epochs to be run
-		for epoch in range(self._epochs_run, max_epochs):
+		epoch_iterator=(tqdm(range(self._epochs_run, max_epochs), desc="Training Progress") if self._verbosity >= 2 
+				else range(self._epochs_run, max_epochs))
+		for epoch in epoch_iterator:
 			self._model.train()
 			train_loss=self._train()
+	
 			if train_loss < self._best_train_loss and self._epochs_run+1 >5:
 				self._best_train_loss=train_loss
-				print(f"Saving best model at Epoch {self._epochs_run+1}")
-				self._save_best_model()
+				if self._best_model_save_path != 'None':
+					self._save_best_model()
+			if self._verbosity >= 2:
+				epoch_iterator.set_postfix(BestTrainLoss=f"{self._best_train_loss:.4f}")
 			self._epochs_run+=1
-			if epoch % self._n_save ==0: self._save_snapshot(epoch) ##Backup of training, in case something interrupts the program. Best to run after validation, if present
+			if abs(self._best_train_loss-train_loss)<self._delta_patience:
+				self._patience+=1
+			else: self._patience=0
+
+			if self._patience >= self._max_patience:
+				self.verbosity_logger.error("Early Stopping Triggered. Best Model has already been saved. Exiting training...")
+				break
+			if epoch % self._n_save ==0 and self._snapshot_path!='None': self._save_snapshot(epoch) ##Backup of training, in case something interrupts the program. Best to run after validation, if present
+
+
 			
 
 	def _train(self):
@@ -124,5 +156,4 @@ class BaseDLFramework:
 			ax.set_ylabel(ylabel)
 		if label:
 			ax.legend()
-		print(f"Saving Train Loss Plot at {os.path.abspath(filename)}")
 		fig.savefig(filename)
