@@ -12,6 +12,7 @@ dependencies = [
     "ruff>=0.15.21",
     "scikit-learn>=1.9.0",
     "tdqm>=0.0.1",
+    "tensorboard>=2.21.0",
     "torch>=2.13.0",
     "torchvision>=0.28.0",
     "tqdm>=4.66.5",

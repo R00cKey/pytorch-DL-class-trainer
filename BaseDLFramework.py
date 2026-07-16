@@ -4,6 +4,8 @@ import torch
 import os
 import logging
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 class BaseDLFramework:
@@ -16,7 +18,8 @@ class BaseDLFramework:
 		scheduler: torch.optim.lr_scheduler.LRScheduler | None,
 		train_criterion: torch.nn.modules.loss._Loss,
 		val_criterion: torch.nn.modules.loss._Loss | None,
-		snapshot_path: str | None = None, #path and filename
+		writer: torch.utils.tensorboard.SummaryWriter | None,
+		snapshot_path: str | None = None,
 		model_init_path: str | None = None,
 		best_model_save_path: str | None = None,
 		save_every_n_epochs: int = 5,
@@ -34,8 +37,9 @@ class BaseDLFramework:
 				scheduler: Learning rate scheduler. Set to None if not used.
 				train_criterion: Loss function used during training.
 				val_criterion: Loss function used during validation. If None,
-					``train_criterion`` can be reused.
-				snapshot_path: Path where training snapshots/checkpoints are saved.
+					'train_criterion' will be reused.
+				writer: Optional Tensorboard writer for visualization
+				snapshot_path: Path and filename where training snapshots/checkpoints are saved.
 				model_init_path: Path to a pretrained model checkpoint to load before
 					training.
 				best_model_save_path: Path where the best-performing model is saved.
@@ -66,6 +70,7 @@ class BaseDLFramework:
 			self._train_loss_by_epochs = [] #Save training loss in each epoch in order to plot train loss vs epochs
 			self._val_loss_by_epochs = [] #Save validation loss in each epoch in order to plot train loss vs epochs
 			self._verbosity=verbosity
+			self._writer = writer
 
 			self.verbosity_logger = logging.getLogger(__name__)
 
@@ -142,6 +147,9 @@ class BaseDLFramework:
 			#Training
 			self._model.train()
 			train_loss=self._train()
+			self._train_loss_by_epochs.append(train_loss)
+
+			if self._writer: self._writer.add_scalar("Loss/train", train_loss, epoch)
 
 			if self._scheduler: self._scheduler.step()
 
@@ -155,6 +163,10 @@ class BaseDLFramework:
 				self._model.eval()
 				with torch.no_grad():
 					val_loss=self._validation()
+
+					self._val_loss_by_epochs.append(val_loss)
+					if self._writer: self._writer.add_scalar("Loss/val", val_loss, epoch)
+
 					if val_loss < self._best_val_loss and self._epochs_run+1 >5:
 						self._best_val_loss=val_loss
 						if self._best_model_save_path:
@@ -175,6 +187,7 @@ class BaseDLFramework:
 					self._patience+=1
 				else: self._patience=0
 
+			self._writer.flush()
 			if self._patience >= self._max_patience:
 				self.verbosity_logger.error("Early Stopping Triggered. Best Model has been saved. Exiting training...")
 				break
@@ -195,8 +208,6 @@ class BaseDLFramework:
 			train_loss+=loss.item()*x.size(0)
 
 		train_loss = train_loss / len(self.train_data.dataset)
-		self._train_loss_by_epochs.append(train_loss)
-
 		return train_loss
 
 	def _validation(self):
@@ -204,11 +215,11 @@ class BaseDLFramework:
 		for x, y in self.val_data:
 			x, y =x.to(self._device), y.to(self._device)
 			outputs = self._model(x)
-			loss = self._val_criterion(outputs, y)
+			if self._val_criterion: loss = self._val_criterion(outputs, y) #val_criterion can be None
+			else: loss = self._train_criterion(outputs, y)
 			val_loss+=loss.item()*x.size(0)
 
 		val_loss = val_loss / len(self.val_data.dataset)
-		self._val_loss_by_epochs.append(val_loss)
 
 		return val_loss
 	
@@ -222,11 +233,14 @@ class BaseDLFramework:
 		for x, y in test_data:
 			x, y =x.to(self._device), y.to(self._device)
 			outputs = self._model(x)
-			loss = self._val_criterion(outputs, y)
+			if self._val_criterion: loss = self._val_criterion(outputs, y) #val_criterion can be None
+			else: loss = self._train_criterion(outputs, y)
 			test_loss+=loss.item()*x.size(0)
 
 		test_loss = test_loss / len(test_data.dataset)
+		if self._writer: self._writer.add_scalar("Loss/test", test_loss)
 		self._model.to(self._device)
+		self._writer.flush()
 		return test_loss
 
 	#Methods to plot data
