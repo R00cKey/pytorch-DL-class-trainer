@@ -1,0 +1,26 @@
+[project]
+name = "pytorch-dl-class-trainer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "logging>=0.4.9.6",
+    "matplotlib>=3.11.0",
+    "numpy>=2.4.4",
+    "pandas>=3.0.3",
+    "ruff>=0.15.21",
+    "scikit-learn>=1.9.0",
+    "tdqm>=0.0.1",
+    "torch>=2.13.0",
+    "torchvision>=0.28.0",
+    "tqdm>=4.66.5",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }

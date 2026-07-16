@@ -29,157 +29,10 @@ class MLP(nn.Module):
             prev_dim = h
 
         layers.append(nn.Linear(prev_dim, output_dim))
-        print(*layers)
         self.fc = nn.Sequential(*layers)
 
     def forward(self, input):
         return self.fc(input)
-
-
-class MLPTrainer(BaseDLFramework):
-    def __init__(
-        self,
-        model: torch.nn.Module,
-        train_dataloader: torch.utils.data.DataLoader,
-        val_dataloader: torch.utils.data.DataLoader,
-        optimizer: torch.optim.Optimizer,
-        criterion: torch.nn.modules.loss._Loss,
-        snapshot_path: str = "snapshot/snapshot.pt", #Path and filename
-        model_init_path: str = 'None',
-        best_model_save_path: str='best_model.pt'
-        ) -> None:
-
-        #Call the variables from the parent class BaseDLFramework
-        super().__init__(model, train_dataloader, optimizer, criterion,
-                         snapshot_path, model_init_path, best_model_save_path)
-
-        #Adding the new variables
-        self.val_data=val_dataloader
-        self._best_val_acc=0
-        self._val_acc_by_epochs=[]
-
-
-    #Modify best model dictionary to store best validation set loss
-    def _save_best_model(self): #Save the model which performed the best
-        best_model={
-            "MODEL_STATE": self._model.state_dict(),
-            "MODEL_ARCH": str(self._get_model),
-            "BEST_ACC": self._best_val_acc,
-            "OPTIM_HYPERPARM": self._get_optim_hp()
-          }
-        torch.save(best_model, self._best_model_save_path)
-
-    #Add validation loop and include it into the epoch run
-
-    def _validation(self):
-        correct_pred=0
-        total_pred=0
-
-        for x, y in self.val_data:
-            x, y =x.to(self._device), y.to(self._device)
-            logits = self._model(x)
-            predicted_classes = torch.argmax(logits, dim=1)
-            correct_pred += (predicted_classes == y).sum().item()
-            total_pred += y.size(0)
-
-        val_acc = correct_pred/total_pred
-        self._val_acc_by_epochs.append(val_acc)
-
-        return val_acc
-
-    #epochs loop must be updated to include validatoin
-    def run_epochs(self, max_epochs: int):
-        for epoch in range(self._epochs_run, max_epochs):
-            self._model.train()
-            train_loss=self._train()
-            if train_loss < self._best_train_loss and self._epochs_run+1 >5:
-                self._best_train_loss=train_loss
-
-            self._model.eval()
-            with torch.no_grad():
-                val_acc=self._validation()
-                if val_acc > self._best_val_acc and self._epochs_run+1 >5:
-                    self._best_val_acc=val_acc
-                    print(f"Saving best model at Epoch {self._epochs_run+1}, with Validation Accuracy: {val_acc}")
-                    self._save_best_model()
-
-            self._epochs_run+=1
-            if epoch % 5 ==0: self._save_snapshot(epoch)
-
-    #Include test method to get test score
-    def eval_accuracy(self, test_data: torch.utils.data.DataLoader):
-        self._model.load_state_dict(torch.load(self._best_model_save_path)["MODEL_STATE"]) # Load the best-performing model
-        correct_pred=0
-        total_pred=0
-        self._model.to('cpu')
-        self._model.eval()
-        for x, y in test_data:
-            x, y =x.to('cpu'), y.to('cpu')
-            logits = self._model(x)
-            predicted_classes = torch.argmax(logits, dim=1)
-            correct_pred += (predicted_classes == y).sum().item()
-            total_pred += y.size(0)
-
-        test_acc = correct_pred/total_pred
-        self._model.to(self._device)
-        return test_acc
-
-    #Plot the validation accuracy by epochs
-    def plot_val_acc_by_epochs(self, title=None, xlabel=None, ylabel=None, label=None, color=None, filename='Val_acc.png'):
-        fig, ax = plt.subplots()
-        ax.plot(np.arange(1, len(self._val_acc_by_epochs)+1), self._val_acc_by_epochs, label=label, color=color)
-        if title:
-            ax.set_title(title)
-        if xlabel:
-            ax.set_xlabel(xlabel)
-        if ylabel:
-            ax.set_ylabel(ylabel)
-        if label:
-            ax.legend()
-        print(f"Saving Validation Accuracy Plot at {os.path.abspath(filename)}")
-        fig.savefig(filename)
-
-
-    def plot_confusion_matrix(self, test_dataloader, title="Confusion Matrix", class_names=None, colormap=plt.cm.Blues, filename='Confusion_matrix.png'):
-        self._model.load_state_dict(torch.load(self._best_model_save_path)["MODEL_STATE"])  #Load the best-performing model
-        self._model = self._model.to('cpu')
-        self._model.eval()  # make sure to call self._model
-
-        all_preds = []
-        all_labels = []
-
-        with torch.no_grad():
-            for inputs, labels in test_dataloader:
-                inputs, labels = inputs.to('cpu'), labels.to('cpu')
-                outputs = self._model(inputs)
-                _, preds = torch.max(outputs, 1)
-
-                all_preds.extend(preds.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
-
-        cm = confusion_matrix(all_labels, all_preds, labels=np.unique(all_labels))
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-
-        fig, ax = plt.subplots()
-        cax = ax.matshow(cm, cmap=colormap)
-        fig.colorbar(cax)
-
-        ax.set_xticks(np.arange(len(class_names)))
-        ax.set_yticks(np.arange(len(class_names)))
-        ax.set_xticklabels(class_names)
-        ax.set_yticklabels(class_names)
-
-        ax.set_xlabel('Predicted Labels')
-        ax.set_ylabel('True Labels')
-        ax.set_title(title)
-
-        # Annotate each cell with the numeric value
-        for i in range(cm.shape[0]):
-            for j in range(cm.shape[1]):
-                text = f"{cm[i, j]:.2f}"
-                ax.text(j, i, text, ha='center', va='center', color='white' if cm[i, j] > cm.max()/2 else 'black')
-        print(f"Saving Confusion Matrix at {os.path.abspath(filename)}")
-        fig.savefig(filename)
 
 
 def main(hidden_dims, lr, epoch_max):
@@ -198,30 +51,35 @@ def main(hidden_dims, lr, epoch_max):
     train_loader= DataLoader(TensorDataset(X_train, torch.tensor(Y_train)), batch_size=16, shuffle=True)
     val_loader= DataLoader(TensorDataset(X_val, torch.tensor(Y_val)), batch_size=16, shuffle=False)
     test_loader= DataLoader(TensorDataset(X_test, torch.tensor(Y_test)), batch_size=16, shuffle=False)
-
+    
     model=MLP(4,hidden_dims,3)
-    trainer=MLPTrainer(model,
+    optimizer=torch.optim.AdamW(model.parameters(),lr=lr)
+    trainer=BaseDLFramework(model,
             train_dataloader=train_loader,
             val_dataloader=val_loader,
-            optimizer=torch.optim.AdamW(model.parameters(),lr=lr),
-            criterion=nn.CrossEntropyLoss(),
+            optimizer=optimizer,
+            train_criterion=nn.CrossEntropyLoss(),
+            val_criterion=nn.CrossEntropyLoss(),
+            scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=25, eta_min=0.0001),
+            verbosity=verbosity,
             snapshot_path=f"snapshot/snapshot_{hidden_dims}_{lr}_{epoch_max}.pt", #Path and filename
-            best_model_save_path=f"best_model_{hidden_dims}_{lr}_{epoch_max}.pt")
-
+            best_model_save_path=f"best_model_{hidden_dims}_{lr}_{epoch_max}.pt"
+    )
+    if verbosity == 1: print(trainer._get_model())
     trainer.run_epochs(epoch_max)
     trainer.plot_train_loss_by_epochs(title="Training Cross-Entropy by Epochs", xlabel="Epochs", ylabel="Cross-Entropy Loss", filename=f"Train_Loss_{hidden_dims}_{lr}_{epoch_max}.png")
-    trainer.plot_val_acc_by_epochs(title="Validation accuracy by Epochs", xlabel="Epochs", ylabel="Accuracy", color="orange", filename=f"Val_Acc_{hidden_dims}_{lr}_{epoch_max}.png")
-    print(f"Hidden dims: {hidden_dims}, LR: {lr}, Training Epochs: {epoch_max}, Test Accuracy: {trainer.eval_accuracy(test_loader):.2%}")
-    trainer.plot_confusion_matrix(test_loader, class_names=iris.target_names, filename=f"Confusion_matrix_{hidden_dims}_{lr}_{epoch_max}.png")
+    trainer.plot_val_loss_by_epochs(title="Training Cross-Entropy by Epochs", xlabel="Epochs", ylabel="Accuracy", color="orange", filename=f"Val_Loss_{hidden_dims}_{lr}_{epoch_max}.png")
+    print(f"Hidden dims: {hidden_dims}, LR: {lr}, Training Epochs: {epoch_max}, Test Cross-Entropy: {trainer.test(test_loader):.4f}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hidden_dims", type=str, default="16")
+    parser.add_argument('--hc',
+                    nargs='+',
+                    type=int,
+                    help ='List of the hidden features in each Layer')
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--epoch_max", type=int, default=50)
+    parser.add_argument("--verbosity", type=int, default=0)
     args = parser.parse_args()
 
-    # Convert string to list if needed
-    hidden_dims = ast.literal_eval(args.hidden_dims)
-    print(hidden_dims)
-    main(hidden_dims, args.lr, args.epoch_max)
+    main(args.hc, args.lr, args.epoch_max, args.verbosity)
