@@ -13,40 +13,45 @@ class BaseDLFramework:
 		self,
 		model: torch.nn.Module,
 		train_dataloader: torch.utils.data.DataLoader,
-		val_dataloader: torch.utils.data.DataLoader | None,
 		optimizer: torch.optim.Optimizer,
-		scheduler: torch.optim.lr_scheduler.LRScheduler | None,
 		train_criterion: torch.nn.modules.loss._Loss,
-		val_criterion: torch.nn.modules.loss._Loss | None,
-		writer: torch.utils.tensorboard.SummaryWriter | None,
-		snapshot_path: str | None = None,
-		model_init_path: str | None = None,
-		best_model_save_path: str | None = None,
+		scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
+
 		save_every_n_epochs: int = 5,
 		patience: int = 10**9,
-		verbosity: int = 0) -> None:
+
+		val_dataloader: torch.utils.data.DataLoader | None = None,
+		val_criterion: torch.nn.modules.loss._Loss | None = None,
+
+		verbosity: int = 0,
+		writer: torch.utils.tensorboard.SummaryWriter | None = None,
+
+		snapshot_path: str | None = None,
+		model_init_path: str | None = None,
+		best_model_save_path: str | None = None) -> None:
 
 			"""Initialize the trainer.
 
 			Args:
 				model: Neural network model to train.
 				train_dataloader: DataLoader containing the training dataset.
-				val_dataloader: DataLoader containing the validation dataset.
-					Set to ``None`` to disable validation.
+				
 				optimizer: Optimizer used to update model parameters.
-				scheduler: Learning rate scheduler. Set to None if not used.
 				train_criterion: Loss function used during training.
-				val_criterion: Loss function used during validation. If None,
-					'train_criterion' will be reused.
-				writer: Optional Tensorboard writer for visualization
-				snapshot_path: Path and filename where training snapshots/checkpoints are saved.
-				model_init_path: Path to a pretrained model checkpoint to load before
-					training.
-				best_model_save_path: Path where the best-performing model is saved.
+				scheduler: Learning rate scheduler. Set to None if not used.
+
 				save_every_n_epochs: Save a checkpoint every N epochs.
-				patience: Number of epochs to wait for validation improvement before
-					early stopping.
+				patience: Number of epochs to wait for validation improvement before early stopping.
+
+				val_dataloader: DataLoader containing the validation dataset. Set to None to disable validation.
+				val_criterion: Loss function used during validation. If None, 'train_criterion' will be reused.
+
 				verbosity: Verbosity level (0 = silent, 1 = save operations, 2 = epochs progress bar).
+				writer: Optional Tensorboard writer for visualization
+
+				snapshot_path: Path and filename where training snapshots/checkpoints are saved.
+				model_init_path: Path to a pretrained model checkpoint to load before training.
+				best_model_save_path: Path where the best-performing model is saved.
 			"""
 
 			self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -187,7 +192,7 @@ class BaseDLFramework:
 					self._patience+=1
 				else: self._patience=0
 
-			self._writer.flush()
+			if self._writer: self._writer.flush()
 			if self._patience >= self._max_patience:
 				self.verbosity_logger.error("Early Stopping Triggered. Best Model has been saved. Exiting training...")
 				break
@@ -201,6 +206,7 @@ class BaseDLFramework:
 			self._optimizer.zero_grad()
 			outputs = self._model(x)
 			loss = self._train_criterion(outputs, y)
+
 			loss.backward()
 
 			self._optimizer.step()
@@ -240,7 +246,7 @@ class BaseDLFramework:
 		test_loss = test_loss / len(test_data.dataset)
 		if self._writer: self._writer.add_scalar("Loss/test", test_loss)
 		self._model.to(self._device)
-		self._writer.flush()
+		if self._writer: self._writer.flush()
 		return test_loss
 
 	#Methods to plot data
